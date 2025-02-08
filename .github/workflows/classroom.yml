@@ -1,4 +1,4 @@
-name: GitHub Classroom Workflow
+name: Classroom
 on:
   push:
     branches:
@@ -6,56 +6,48 @@ on:
   pull_request:
     branches:
       - master
+
 jobs:
-  build:
-    name: Autograding
+  run:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-
-      - uses: docker/setup-buildx-action@v2
-
-      # TODO build and run unit tests
-
-      - name: Build images
-        timeout-minutes: 10
-        run: docker compose build
-
-      - name: Run containers
-        timeout-minutes: 5
+          
+      - name: Keygen
         run: |
-          docker compose up -d
-          ./scripts/wait-script.sh
+          echo "Deploying to server..."
+          install -m 600 -D /dev/null ~/.ssh/id_ed25519
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} > ~/.ssh/known_hosts
+          
+      - name: Deploy
+        uses: D3rHase/ssh-command-action@v0.2.2
+        with:
+          host: ${{secrets.SSH_HOST}}
+          user: ${{secrets.SSH_USER}}
+          private_key: ${{secrets.SSH_PRIVATE_KEY}}
+          command: |
+            sudo docker compose -f docker-compose.yml down;
+            cd lab3-template;
+            git checkout master;
+            git pull;
+            sudo docker compose -f docker-compose.yml up -d --build;
+            sudo docker ps -a;
+            exit;
+
+      - name: healthcheck
+        run: ./scripts/wait-script.sh
         env:
           WAIT_PORTS: 8080,8070,8060,8050
-
-      # TODO setup variant, service and port
-
+          HOST: ${{ secrets.HOST }}
+        continue-on-error: true
+        
       - name: Run API Tests
         timeout-minutes: 5
         run: ./scripts/test-script.sh
         env:
-          VARIANT: <variant>
-          SERVICE_NAME: <your service name>
-          PORT_NUMBER: <port number>
-
-      - uses: education/autograding@v1
-        id: autograder
-        continue-on-error: true
-
-      - name: Github auto grader mark
-        uses: Romanow/google-sheet-autograder-marker@v1.0
-        with:
-          google_token: ${{secrets.GOOGLE_API_KEY}}
-          sheet_id: "1xkgjUX6Qmk7rdJG-QPOToav-HWWtthJjnShIKnw3oIY"
-          homework_number: 3
-          user_column: 'D'
-          column_offset: 'F'
-          mark: "'+"
-
-      - name: Stop containers
-        if: always()
-        continue-on-error: true
-        run: docker compose down -v
+          VARIANT: v4
+          SERVICE_NAME: rating-service
+          PORT_NUMBER: 8050

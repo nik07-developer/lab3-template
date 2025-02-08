@@ -4,17 +4,111 @@ services:
     image: library/postgres:13
     container_name: postgres
     restart: on-failure
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "postgres"
-      POSTGRES_DB: postgres
+    env_file:
+      - ./env/postgres.env
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - ./db-data:/var/lib/postgresql/data
       - ./postgres/:/docker-entrypoint-initdb.d/
     ports:
-      - "5432:5432"
+      - 5432:5432
+    networks:
+      - db-local
 
-# TODO добавить сервисы
+  redis:
+    image: redis:latest
+    container_name: redis
+    env_file:
+      - ./env/redis.env
+    volumes:
+      - ./redis-data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    ports:
+      - 6379:6379
+    restart: unless-stopped
+    networks:
+      - redis-local
+
+  gateway:
+    image: ${DOCKER_REGISTRY-}app2/gateway
+    restart: always
+    build:
+      context: ./app
+      dockerfile: ./Gateway/Dockerfile
+      args:
+        BUILD_CONFIGURATION: ${BUILD_CONFIGURATION}
+    env_file:
+      - ./env/gateway.env
+    ports:
+      - ${GATEWAY_PORT}:${GATEWAY_PORT}
+    networks:
+      - library-local
+      - reservation-local
+      - rating-local
+      - redis-local
+
+  library-service:
+    image: ${DOCKER_REGISTRY-}app2/library-service
+    restart: always
+    build:
+      context: ./app
+      dockerfile: ./LibraryService/Dockerfile
+      args:
+        BUILD_CONFIGURATION: ${BUILD_CONFIGURATION}
+    env_file:
+      - ./env/library-service.env
+    ports:
+      - ${LIBRARY_PORT}:${LIBRARY_PORT}
+    depends_on:
+      - postgres
+    networks:
+      - db-local
+      - library-local
+
+  reservation-service:
+    image: ${DOCKER_REGISTRY-}app2/reservation-service
+    restart: always
+    build:
+      context: ./app
+      dockerfile: ./ReservationService/Dockerfile
+      args:
+        BUILD_CONFIGURATION: ${BUILD_CONFIGURATION}
+    env_file:
+      - ./env/reservation-service.env
+    ports:
+      - ${RESERVATION_PORT}:${RESERVATION_PORT}
+    depends_on:
+      - postgres
+    networks:
+      - db-local
+      - reservation-local
+
+  rating-service:
+    image: ${DOCKER_REGISTRY-}app2/rating-service
+    restart: always
+    build:
+      context: ./app
+      dockerfile: ./RatingService/Dockerfile
+      args:
+        BUILD_CONFIGURATION: ${BUILD_CONFIGURATION}
+    env_file:
+      - ./env/rating-service.env
+    ports:
+      - ${RATING_PORT}:${RATING_PORT}
+    depends_on:
+      - postgres
+    networks:
+      - db-local
+      - rating-local
+
+networks:
+  library-local:
+  reservation-local:
+  rating-local:
+  db-local:
+    driver: bridge
+  redis-local:
 
 volumes:
   db-data:
+  redis-data:
