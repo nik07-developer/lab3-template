@@ -43,11 +43,15 @@ jobs:
           WAIT_PORTS: 8080,8070,8060,8050
           HOST: ${{ secrets.HOST }}
         continue-on-error: true
-        
+
       - name: Run API Tests
-        timeout-minutes: 5
-        run: ./scripts/test-script.sh
-        env:
-          VARIANT: v4
-          SERVICE_NAME: rating-service
-          PORT_NUMBER: 8050
+        uses: D3rHase/ssh-command-action@v0.2.2
+        with:
+          host: ${{secrets.SSH_HOST}}
+          user: ${{secrets.SSH_USER}}
+          private_key: ${{secrets.SSH_PRIVATE_KEY}}
+          command: |
+            cd lab3-template;
+            ./scripts/test-script.sh v4 rating-service 8050;
+            exit;
+        
