@@ -9,7 +9,7 @@
   "values": [
     {
       "type": "any",
-      "value": "http://158.160.140.101:8080",
+      "value": "http://51.250.40.118:8080",
       "key": "baseUrl"
     },
     {
